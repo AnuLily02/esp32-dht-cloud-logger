@@ -3,3 +3,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+# Hide private credentials from Git / GitHub
+include/config.h
+
+# PlatformIO build files
+.pio/
+.vscode/
