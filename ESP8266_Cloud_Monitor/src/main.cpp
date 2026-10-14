@@ -6,17 +6,17 @@
 #include <UniversalTelegramBot.h>
 #include <ArduinoJson.h>
 
-// Load private credentials from include/config.h
+// 1. Load private credentials from include/config.h
 #include "config.h"
 
-// Hardware Pins & Settings
-#define DHTPIN          D2       // Connected to DHT DATA pin
+// 2. Hardware Pin Setup & Sensitivity
+#define DHTPIN          D2       // Connect DHT DATA pin to D2
 #define DHTTYPE         DHT11
 #define BUILTIN_LED_PIN LED_BUILTIN 
 
-#define SPIKE_THRESHOLD 1.5      // Alert trigger if temp rises >= 1.5°C in 10 seconds
+#define SPIKE_THRESHOLD 1.5      // Sends alert if temp rises >= 1.5°C between 10-sec checks
 
-// Objects
+// 3. Initialize Sensor and Clients
 DHT dht(DHTPIN, DHTTYPE);
 AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);
 
@@ -25,7 +25,7 @@ UniversalTelegramBot bot(BOT_TOKEN, secured_client);
 
 float previousTemp = -999.0;
 unsigned long lastCloudUpdate = 0;
-const unsigned long UPDATE_INTERVAL = 10000; // 10-second check loop
+const unsigned long UPDATE_INTERVAL = 10000; // Reads every 10 seconds
 
 void setup() {
   Serial.begin(115200);
@@ -33,30 +33,45 @@ void setup() {
   Serial.println("\n=== ESP8266 Temperature Monitor Starting ===");
 
   pinMode(BUILTIN_LED_PIN, OUTPUT);
-  digitalWrite(BUILTIN_LED_PIN, HIGH); // Turn off LED initially
+  digitalWrite(BUILTIN_LED_PIN, HIGH); // Turn off onboard LED initially
 
   dht.begin();
 
-  // 1. Connect to Wi-Fi
+  // --- FORCE WI-FI FLASH RESET (Clears stuck session memory) ---
+  Serial.println("Resetting ESP8266 Wi-Fi memory...");
+  WiFi.persistent(false);
+  WiFi.disconnect(true);
+  delay(2000);
+  // -----------------------------------------------------------
+
+  // Connect to Wi-Fi Network
   Serial.print("Connecting to Wi-Fi: ");
   Serial.println(WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
+    attempts++;
+  }
+
+  // Auto-restart if stuck connecting for over 15 seconds
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\n>>> Wi-Fi Connection Timeout! Restarting ESP8266...");
+    ESP.restart();
   }
 
   Serial.println("\nWi-Fi Connected Successfully!");
   Serial.print("Local IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // 2. Configure SSL Client (Insecure mode bypasses cert checks)
+  // Disable SSL Certificate validation for Telegram API
   secured_client.setInsecure();
   secured_client.setTimeout(15000); // 15-second timeout for Telegram requests
 
-  // 3. Connect to Adafruit IO
+  // Connect to Adafruit IO Cloud
   Serial.print("Connecting to Adafruit IO...");
   io.connect();
 
@@ -66,7 +81,7 @@ void setup() {
   }
   Serial.println("\nConnected to Adafruit IO!");
 
-  // 4. Send Startup Telegram Notification
+  // Send System Startup Alert via Telegram
   Serial.println("Attempting to send startup Telegram notification...");
   bool startupSent = bot.sendMessage(CHAT_ID, "⚠️ ESP8266 Temperature Monitor Connected & Online!", "");
   
@@ -81,6 +96,7 @@ void loop() {
   // Keep Adafruit IO connection active
   io.run();
 
+  // Execute reading task every 10 seconds
   if (millis() - lastCloudUpdate > UPDATE_INTERVAL) {
     lastCloudUpdate = millis();
 
@@ -92,9 +108,10 @@ void loop() {
       return;
     }
 
+    // Print reading to Serial Monitor
     Serial.printf("Temp: %.1f °C | Humidity: %.1f %%\n", currentTemp, currentHumidity);
 
-    // Upload feeds to Adafruit IO
+    // Save data feeds to Adafruit IO Cloud
     AdafruitIO_Feed *tempFeed = io.feed("temperature");
     AdafruitIO_Feed *humFeed  = io.feed("humidity");
     tempFeed->save(currentTemp);
@@ -105,7 +122,7 @@ void loop() {
       float tempDifference = currentTemp - previousTemp;
 
       if (tempDifference >= SPIKE_THRESHOLD || currentTemp >= 35.0) {
-        digitalWrite(BUILTIN_LED_PIN, LOW); // Turn ON onboard LED
+        digitalWrite(BUILTIN_LED_PIN, LOW); // Turn ON onboard LED indicator
         
         String alertMsg = "🚨 TEMPERATURE ALERT DETECTED!\n";
         alertMsg += "Current Temp: " + String(currentTemp, 1) + " °C\n";
@@ -116,7 +133,7 @@ void loop() {
 
         Serial.println("Attempting to send Telegram Alert...");
         
-        // Re-apply SSL settings right before sending to prevent connection drops
+        // Re-arm SSL settings right before sending to prevent connection drops
         secured_client.setInsecure();
         bool alertSent = bot.sendMessage(CHAT_ID, alertMsg, "");
         
@@ -126,7 +143,7 @@ void loop() {
           Serial.println(">>> ERROR: Telegram Spike Alert FAILED to send!");
         }
       } else {
-        digitalWrite(BUILTIN_LED_PIN, HIGH); // Turn OFF onboard LED
+        digitalWrite(BUILTIN_LED_PIN, HIGH); // Turn OFF onboard LED indicator
       }
     }
 
