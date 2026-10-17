@@ -19,6 +19,7 @@ An IoT-based environmental monitoring system powered by a **NodeMCU ESP8266** an
 | Telegram Startup Notification | Rapid Spike Alert |
 
 ![Screenshot](image.png)
+![image](image-1.png)
 ---
 ## 🔌 Circuit Diagram & Hardware Setup
 
