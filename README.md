@@ -23,6 +23,11 @@ An IoT-based environmental monitoring system powered by a **NodeMCU ESP8266** an
 | *[ Insert Startup Screenshot ]* | *[ Insert Alert Screenshot ]* |
 
 ---
+## 🔌 Circuit Diagram & Hardware Setup
+
+Here is the complete schematic diagram for connecting the NodeMCU ESP8266 to the DHT11 sensor and status indicator:
+
+![ESP8266 DHT11 Circuit Diagram](./ESP8266_Cloud_Monitor/assets/circuit-diagram.png)
 
 ## 🔌 Circuit Wiring & Hardware Setup
 
